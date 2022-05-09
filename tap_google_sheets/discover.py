@@ -6,7 +6,7 @@ def discover(client, spreadsheet_id, data_ranges):
     catalog = Catalog([])
 
     for stream, stream_obj in STREAMS.items():
-        stream_object = stream_obj(client, spreadsheet_id, data_ranges)
+        stream_object = stream_obj(client, spreadsheet_id, data_ranges=data_ranges)
         schemas, field_metadata = stream_object.get_schemas()
 
         # loop over the schema and prepare catalog
@@ -26,7 +26,7 @@ def discover(client, spreadsheet_id, data_ranges):
                     if table_key_properties:
                         key_props = table_key_properties
             else:
-                stream_obj = STREAMS.get(stream_name)(client, spreadsheet_id, data_ranges)
+                stream_obj = STREAMS.get(stream_name)(client, spreadsheet_id, data_ranges=data_ranges)
                 key_props = stream_obj.key_properties
 
             catalog.streams.append(CatalogEntry(

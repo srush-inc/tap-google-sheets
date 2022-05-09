@@ -14,10 +14,10 @@ import tap_google_sheets.schema as schema
 LOGGER = singer.get_logger()
 
 DEFAULT_DATA_RANGE = {
-    'header_line_no': 0, 
-    # 'data_line_end': 100,
-    'column_start': 0, 
-    # 'column_end': 10
+    'header_line_no': 1, 
+    # 'end_line_no': 100,
+    'column_offset': 0, 
+    # 'column_limit': 10
 }
 
 def update_currently_syncing(state, stream_name):
@@ -128,13 +128,14 @@ class GoogleSheets:
         self.spreadsheet_id = spreadsheet_id
         self.config_data_ranges = data_ranges
 
-    def get_path(self, sheet_title_encoded=""):
+    def get_path(self, sheet_title=""):
         """
         return path and query string for API Call
         """
         # Add in querystring parameters and replace {placeholder} variables
         # querystring function ensures parameters are added but not encoded causing API errors
         # create querystring for preparing the request
+        sheet_title_encoded = urllib.parse.quote_plus(sheet_title)
         querystring = '&'.join(['%s=%s' % (key, value) for (key, value) in self.params.items()]).replace('{sheet_title}', sheet_title_encoded)
         # create path for preparing the request
         path = '{}?{}'.format(self.path.replace('{spreadsheet_id}', self.spreadsheet_id), querystring)
@@ -209,7 +210,7 @@ class GoogleSheets:
             '{spreadsheet_id}', self.spreadsheet_id).replace('{sheet_title}', stream_name_encoded).replace(
                 '{range_rows}', range_rows)
         api = self.api
-        _, querystring = self.get_path(stream_name_encoded)
+        _, querystring = self.get_path(stream_name)
         LOGGER.info('URL: {}/{}?{}'.format(self.client.base_url, path, querystring))
         data = {}
         time_extracted = utils.now()
@@ -431,20 +432,20 @@ class SheetsLoadData(GoogleSheets):
                                 sheet_last_col_letter = col_letter
                         sheet_max_row = sheet.get('properties').get('gridProperties', {}).get('rowCount')
                         
-                        if data_range.get('data_line_end') and data_range.get('data_line_end') < sheet_max_row:
-                            sheet_max_row = data_range.get('data_line_end')
+                        if data_range.get('end_line_no') and data_range.get('end_line_no') < sheet_max_row:
+                            sheet_max_row = data_range.get('end_line_no')
                         
                         # Initialize paging for 1st batch
                         is_last_row = False
                         batch_rows = 200
-                        from_row = 2 + data_range.get('header_line_no')
+                        from_row = 1 + data_range.get('header_line_no')
                         if sheet_max_row < batch_rows:
                             to_row = sheet_max_row
                         else:
                             to_row = batch_rows
 
                         # Loop thru batches (each having 200 rows of data)
-                        while not is_last_row and from_row < sheet_max_row and to_row <= sheet_max_row:
+                        while not is_last_row and from_row <= sheet_max_row and to_row <= sheet_max_row:
                             range_rows = '{}{}:{}{}'.format(sheet_first_col_letter, from_row, sheet_last_col_letter, to_row)
 
                             # GET sheet_data for a worksheet tab
@@ -521,6 +522,24 @@ class SheetMetadata(GoogleSheets):
         "includeGridData": "true",
         "ranges": "'{sheet_title}'!1:2"
     }
+    
+    def get_path(self, sheet_title=""):
+        """
+        return path and query string for API Call
+        """
+        # Add in querystring parameters and replace {placeholder} variables
+        # querystring function ensures parameters are added but not encoded causing API errors
+        # create querystring for preparing the request
+        sheet_title_encoded = urllib.parse.quote_plus(sheet_title)
+        s = 1
+        if self.config_data_ranges.get(sheet_title):
+            s = self.config_data_ranges.get(sheet_title).get('header_line_no')
+        self.params.update({"ranges": f"{sheet_title_encoded}!{s}:{s+1}"})
+        querystring = '&'.join(['%s=%s' % (key, value) for (key, value) in self.params.items()])
+        # create path for preparing the request
+        path = '{}?{}'.format(self.path.replace('{spreadsheet_id}', self.spreadsheet_id), querystring)
+        # return path and query string
+        return path, querystring
 
     def sync(self, catalog, state, sheet_metadata_records):
         """

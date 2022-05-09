@@ -40,8 +40,11 @@ def get_sheet_schema_columns(sheet, data_ranges):
         return None, None
 
     # spreadsheet is an OrderedDict, with orderd sheets and rows in the repsonse
-    headers = row_data[data_range.get('header_line_no')].get('values', [])[data_range.get('column_start'): data_range.get('column_end')]
-    first_values = row_data[data_range.get('header_line_no') + 1].get('values', [])[data_range.get('column_start'): data_range.get('column_end')]
+    col_offset = data_range.get('column_offset')
+    col_end = data_range.get('column_offset') + data_range.get('column_limit') if data_range.get('column_limit') else None
+    headers = row_data[0].get('values', [])[col_offset: col_end]
+    first_values = row_data[1].get('values', [])[col_offset: col_end]
+
     # Pad first row values with default if null
     if len(first_values) < len(headers):
         pad_default_effective_values(headers, first_values)
@@ -65,7 +68,7 @@ def get_sheet_schema_columns(sheet, data_ranges):
     header_list = [] # used for checking uniqueness
     columns = []
     prior_header = None
-    i = data_range.get('column_start')
+    i = data_range.get('column_offset')
     skipped = 0
 
     # if no headers are present, log the message that sheet is skipped
@@ -242,11 +245,10 @@ def get_sheet_metadata(sheet, spreadsheet_id, client, data_ranges):
     LOGGER.info('sheet_id = {}, sheet_title = {}'.format(sheet_id, sheet_title))
 
     stream_name = 'sheet_metadata'
-    stream_obj = STREAMS.get(stream_name)(client, spreadsheet_id)
+    stream_obj = STREAMS.get(stream_name)(client, spreadsheet_id, data_ranges=data_ranges)
     api = stream_obj.api
-    sheet_title_encoded = urllib.parse.quote_plus(sheet_title)
     sheet_title_escaped = re.escape(sheet_title)
-    path, _ = stream_obj.get_path(sheet_title_encoded)
+    path, _ = stream_obj.get_path(sheet_title)
 
     sheet_md_results = client.get(path=path, api=api, endpoint=sheet_title_escaped)
     # sheet_metadata: 1st `sheets` node in results

@@ -17,14 +17,13 @@ REQUIRED_CONFIG_KEYS = [
     'refresh_token',
     'spreadsheet_id',
     'start_date',
-    'user_agent',
-    'data_ranges'
+    'user_agent'
 ]
 
-def do_discover(client, spreadsheet_id):
+def do_discover(client, spreadsheet_id, data_ranges):
 
     LOGGER.info('Starting discover')
-    catalog = discover(client, spreadsheet_id)
+    catalog = discover(client, spreadsheet_id, data_ranges)
     json.dump(catalog.to_dict(), sys.stdout, indent=2)
     LOGGER.info('Finished discover')
 
@@ -47,7 +46,7 @@ def main():
 
         config = parsed_args.config
         spreadsheet_id = config.get('spreadsheet_id')
-        # { "sheet title": { "header_line_no": 1, "data_line_end": 100, "column_start": 4, "column_end": 10 }, "sheet2 title": {} }
+        # { "sheet title": { "header_line_no": 1, "end_line_no": 100, "column_offset": 4, "column_limit": 10 }, "sheet2 title": {} }
         data_ranges = config.get('data_ranges') if config.get('data_ranges') else {} 
 
         if parsed_args.discover:
