@@ -13,6 +13,13 @@ import tap_google_sheets.schema as schema
 
 LOGGER = singer.get_logger()
 
+DEFAULT_DATA_RANGE = {
+    'header_line_no': 0, 
+    # 'data_line_end': 100,
+    'column_start': 0, 
+    # 'column_end': 10
+}
+
 def update_currently_syncing(state, stream_name):
     """
     Currently syncing sets the stream currently being delivered in the state.
@@ -115,10 +122,11 @@ class GoogleSheets:
     params = None
     state = None
 
-    def __init__(self, client, spreadsheet_id, start_date=None):
+    def __init__(self, client, spreadsheet_id, start_date=None, data_ranges={}):
         self.client = client
         self.config_start_date = start_date
         self.spreadsheet_id = spreadsheet_id
+        self.config_data_ranges = data_ranges
 
     def get_path(self, sheet_title_encoded=""):
         """
@@ -303,7 +311,7 @@ class SpreadSheetMetadata(GoogleSheets):
             # Loop thru each worksheet in spreadsheet
             for sheet in sheets:
                 # GET sheet_json_schema for each worksheet (from function above)
-                sheet_json_schema, columns = schema.get_sheet_metadata(sheet, self.spreadsheet_id, self.client)
+                sheet_json_schema, columns = schema.get_sheet_metadata(sheet, self.spreadsheet_id, self.client, self.config_data_ranges)
 
                 # SKIP empty sheets (where sheet_json_schema and columns are None)
                 if sheet_json_schema and columns:
@@ -368,7 +376,7 @@ class SheetsLoadData(GoogleSheets):
                 sheet_id = sheet.get('properties', {}).get('sheetId')
 
                 # GET sheet_metadata and columns
-                sheet_schema, columns = schema.get_sheet_metadata(sheet, self.spreadsheet_id, self.client)
+                sheet_schema, columns = schema.get_sheet_metadata(sheet, self.spreadsheet_id, self.client, self.config_data_ranges)
                 # LOGGER.info('sheet_schema: {}'.format(sheet_schema))
 
                 # SKIP empty sheets (where sheet_schema and columns are None)
@@ -403,21 +411,33 @@ class SheetsLoadData(GoogleSheets):
                             singer.write_message(activate_version_message)
                             LOGGER.info('INITIAL SYNC, Stream: {}, Activate Version: {}'.format(sheet_title, activate_version))
 
+                        data_range = DEFAULT_DATA_RANGE
+                        if self.config_data_ranges.get(sheet_title):
+                            data_range.update(self.config_data_ranges.get(sheet_title))
+                            
                         # Determine max range of columns and rows for "paging" through the data
+                        sheet_first_col_index = float('inf')
+                        sheet_first_col_letter = 'Z'
                         sheet_last_col_index = 1
                         sheet_last_col_letter = 'A'
                         for col in columns:
                             col_index = col.get('columnIndex')
                             col_letter = col.get('columnLetter')
+                            if col_index < sheet_first_col_index:
+                                sheet_first_col_index = col_index
+                                sheet_first_col_letter = col_letter
                             if col_index > sheet_last_col_index:
                                 sheet_last_col_index = col_index
                                 sheet_last_col_letter = col_letter
                         sheet_max_row = sheet.get('properties').get('gridProperties', {}).get('rowCount')
-
+                        
+                        if data_range.get('data_line_end') and data_range.get('data_line_end') < sheet_max_row:
+                            sheet_max_row = data_range.get('data_line_end')
+                        
                         # Initialize paging for 1st batch
                         is_last_row = False
                         batch_rows = 200
-                        from_row = 2
+                        from_row = 2 + data_range.get('header_line_no')
                         if sheet_max_row < batch_rows:
                             to_row = sheet_max_row
                         else:
@@ -425,7 +445,7 @@ class SheetsLoadData(GoogleSheets):
 
                         # Loop thru batches (each having 200 rows of data)
                         while not is_last_row and from_row < sheet_max_row and to_row <= sheet_max_row:
-                            range_rows = 'A{}:{}{}'.format(from_row, sheet_last_col_letter, to_row)
+                            range_rows = '{}{}:{}{}'.format(sheet_first_col_letter, from_row, sheet_last_col_letter, to_row)
 
                             # GET sheet_data for a worksheet tab
                             sheet_data, time_extracted = self.get_data(stream_name=sheet_title, range_rows=range_rows)

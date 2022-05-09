@@ -2,7 +2,7 @@ import re
 import urllib.parse
 from collections import OrderedDict
 import singer
-from tap_google_sheets.streams import STREAMS
+from tap_google_sheets.streams import STREAMS, DEFAULT_DATA_RANGE
 
 LOGGER = singer.get_logger()
 
@@ -24,9 +24,14 @@ def pad_default_effective_values(headers, first_values):
 
 
 # Create sheet_metadata_json with columns from sheet
-def get_sheet_schema_columns(sheet):
+def get_sheet_schema_columns(sheet, data_ranges):
     sheet_title = sheet.get('properties', {}).get('title')
     sheet_json_schema = OrderedDict()
+
+    data_range = DEFAULT_DATA_RANGE
+    if data_ranges.get(sheet_title):
+        data_range.update(data_ranges.get(sheet_title))
+
     data = next(iter(sheet.get('data', [])), {})
     row_data = data.get('rowData', [])
     if row_data == [] or len(row_data) == 1:
@@ -35,8 +40,8 @@ def get_sheet_schema_columns(sheet):
         return None, None
 
     # spreadsheet is an OrderedDict, with orderd sheets and rows in the repsonse
-    headers = row_data[0].get('values', [])
-    first_values = row_data[1].get('values', [])
+    headers = row_data[data_range.get('header_line_no')].get('values', [])[data_range.get('column_start'): data_range.get('column_end')]
+    first_values = row_data[data_range.get('header_line_no') + 1].get('values', [])[data_range.get('column_start'): data_range.get('column_end')]
     # Pad first row values with default if null
     if len(first_values) < len(headers):
         pad_default_effective_values(headers, first_values)
@@ -60,7 +65,7 @@ def get_sheet_schema_columns(sheet):
     header_list = [] # used for checking uniqueness
     columns = []
     prior_header = None
-    i = 0
+    i = data_range.get('column_start')
     skipped = 0
 
     # if no headers are present, log the message that sheet is skipped
@@ -231,7 +236,7 @@ def get_sheet_schema_columns(sheet):
 #   endpoint: spreadsheets/{spreadsheet_id}
 #   params: includeGridData = true, ranges = '{sheet_title}'!1:2
 # This endpoint includes detailed metadata about each cell - incl. data type, formatting, etc.
-def get_sheet_metadata(sheet, spreadsheet_id, client):
+def get_sheet_metadata(sheet, spreadsheet_id, client, data_ranges):
     sheet_id = sheet.get('properties', {}).get('sheetId')
     sheet_title = sheet.get('properties', {}).get('title')
     LOGGER.info('sheet_id = {}, sheet_title = {}'.format(sheet_id, sheet_title))
@@ -249,7 +254,7 @@ def get_sheet_metadata(sheet, spreadsheet_id, client):
 
     # Create sheet_json_schema (for discovery/catalog) and columns (for sheet_metadata results)
     try:
-        sheet_json_schema, columns = get_sheet_schema_columns(sheet_metadata)
+        sheet_json_schema, columns = get_sheet_schema_columns(sheet_metadata, data_ranges)
     except Exception as err:
         LOGGER.warning('{}'.format(err))
         LOGGER.warning('SKIPPING Malformed sheet: {}'.format(sheet_title))

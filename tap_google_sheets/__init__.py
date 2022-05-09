@@ -17,7 +17,8 @@ REQUIRED_CONFIG_KEYS = [
     'refresh_token',
     'spreadsheet_id',
     'start_date',
-    'user_agent'
+    'user_agent',
+    'data_ranges'
 ]
 
 def do_discover(client, spreadsheet_id):
@@ -46,9 +47,11 @@ def main():
 
         config = parsed_args.config
         spreadsheet_id = config.get('spreadsheet_id')
+        # { "sheet title": { "header_line_no": 1, "data_line_end": 100, "column_start": 4, "column_end": 10 }, "sheet2 title": {} }
+        data_ranges = config.get('data_ranges') if config.get('data_ranges') else {} 
 
         if parsed_args.discover:
-            do_discover(client, spreadsheet_id)
+            do_discover(client, spreadsheet_id, data_ranges)
         elif parsed_args.catalog:
             sync(client=client,
                  config=config,
