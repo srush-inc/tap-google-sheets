@@ -358,7 +358,7 @@ class SheetsLoadData(GoogleSheets):
     key_properties = ["spreadsheetId", "sheetId", "loadDate"]
     replication_method = "FULL_TABLE"
     params = {
-        "dateTimeRenderOption": "SERIAL_NUMBER",
+        "dateTimeRenderOption": "FORMATTED_STRING",
         "valueRenderOption": "UNFORMATTED_VALUE",
         "majorDimension": "ROWS"
     }
@@ -556,7 +556,7 @@ class SheetsLoaded(GoogleSheets):
     key_properties = ["spreadsheetId", "sheetId", "loadDate"]
     replication_method = "FULL_TABLE"
     params = {
-        "dateTimeRenderOption": "SERIAL_NUMBER",
+        "dateTimeRenderOption": "FORMATTED_STRING",
         "valueRenderOption": "UNFORMATTED_VALUE",
         "majorDimension": "ROWS"
     }
