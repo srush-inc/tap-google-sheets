@@ -47,7 +47,7 @@ def main():
         config = parsed_args.config
         spreadsheet_id = config.get('spreadsheet_id')
         # { "sheet title": { "header_line_no": 1, "end_line_no": 100, "column_offset": 4, "column_limit": 10 }, "sheet2 title": {} }
-        data_ranges = config.get('data_ranges') if config.get('data_ranges') else {} 
+        data_ranges = config.get('data_ranges') if config.get('data_ranges') else {}
 
         if parsed_args.discover:
             do_discover(client, spreadsheet_id, data_ranges)

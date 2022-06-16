@@ -14,9 +14,9 @@ import tap_google_sheets.schema as schema
 LOGGER = singer.get_logger()
 
 DEFAULT_DATA_RANGE = {
-    'header_line_no': 1, 
+    'header_line_no': 1,
     # 'end_line_no': 100,
-    'column_offset': 0, 
+    'column_offset': 0,
     # 'column_limit': 10
 }
 
@@ -126,7 +126,7 @@ class GoogleSheets:
         self.client = client
         self.config_start_date = start_date
         self.spreadsheet_id = spreadsheet_id
-        self.config_data_ranges = data_ranges
+        self.config_data_ranges = data_ranges if data_ranges else {}
 
     def get_path(self, sheet_title=""):
         """
@@ -415,7 +415,7 @@ class SheetsLoadData(GoogleSheets):
                         data_range = DEFAULT_DATA_RANGE
                         if self.config_data_ranges.get(sheet_title):
                             data_range.update(self.config_data_ranges.get(sheet_title))
-                            
+
                         # Determine max range of columns and rows for "paging" through the data
                         sheet_first_col_index = float('inf')
                         sheet_first_col_letter = 'Z'
@@ -431,10 +431,10 @@ class SheetsLoadData(GoogleSheets):
                                 sheet_last_col_index = col_index
                                 sheet_last_col_letter = col_letter
                         sheet_max_row = sheet.get('properties').get('gridProperties', {}).get('rowCount')
-                        
+
                         if data_range.get('end_line_no') and data_range.get('end_line_no') < sheet_max_row:
                             sheet_max_row = data_range.get('end_line_no')
-                        
+
                         # Initialize paging for 1st batch
                         is_last_row = False
                         batch_rows = 200
@@ -522,7 +522,7 @@ class SheetMetadata(GoogleSheets):
         "includeGridData": "true",
         "ranges": "'{sheet_title}'!1:2"
     }
-    
+
     def get_path(self, sheet_title=""):
         """
         return path and query string for API Call
